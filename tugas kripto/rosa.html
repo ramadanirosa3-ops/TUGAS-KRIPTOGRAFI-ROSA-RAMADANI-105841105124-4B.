@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Sistem Login Berbasis Hash</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 25px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+            transition: transform 0.3s ease;
+        }
+
+        .container:hover {
+            transform: translateY(-5px);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            outline: none;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .input-group input:focus {
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #ff758c;
+            background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.3s ease, transform 0.1s ease;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .toggle-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .toggle-link span {
+            color: #ff7eb3;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+
+        .message-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+            word-wrap: break-word;
+        }
+
+        .success {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid #2ecc71;
+            color: #2ecc71;
+        }
+
+        .error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #ff7675;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #dashboard {
+            text-align: center;
+        }
+
+        .hash-result {
+            font-family: monospace;
+            font-size: 11px;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 5px;
+            margin-top: 10px;
+            color: #bdc3c7;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="auth-panel">
+        <h2 id="form-title">Login Sistem</h2>
+        
+        <div class="input-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="Masukkan Username" autocomplete="off">
+        </div>
+        
+        <div class="input-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Masukkan Password">
+        </div>
+
+        <button id="action-btn" onclick="handleAction()">Login</button>
+
+        <div class="toggle-link">
+            <p id="toggle-text">Belum punya akun? <span onclick="toggleMode()">Daftar di sini</span></p>
+        </div>
+
+        <div id="message" class="message-box"></div>
+    </div>
+
+    <div class="container hidden" id="dashboard-panel">
+        <h2>Dashboard</h2>
+        <p>Selamat datang, <strong id="user-display"></strong>!</p>
+        <p style="margin-top: 10px; font-size: 14px; color: #ddd;">Anda telah berhasil masuk ke dalam sistem.</p>
+        <button onclick="logout()" style="margin-top: 30px; background: linear-gradient(135deg, #f12711 0%, #f5af19 100%);">Keluar (Logout)</button>
+    </div>
+
+    <script>
+        // Simulasi Database menggunakan LocalStorage agar data tidak hilang saat refresh
+        // Format object persis seperti dictionary Python: {'username': 'hashed_password'}
+        function getDatabase() {
+            return JSON.parse(localStorage.getItem('database_user')) || {};
+        }
+
+        function saveDatabase(db) {
+            localStorage.setItem('database_user', JSON.stringify(db));
+        }
+
+        // Variabel penanda mode saat ini (login atau register)
+        let isLoginMode = true;
+
+        // Fungsi mengubah string menjadi hash SHA-256 (Menggunakan Web Crypto API)
+        async function hash_sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        // Fungsi mengganti mode antara Login dan Registrasi
+        function toggleMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('form-title').innerText = isLoginMode ? "Login Sistem" : "Registrasi User";
+            document.getElementById('action-btn').innerText = isLoginMode ? "Login" : "Daftar";
+            document.getElementById('toggle-text').innerHTML = isLoginMode 
+                ? 'Belum punya akun? <span onclick="toggleMode()">Daftar di sini</span>' 
+                : 'Sudah punya akun? <span onclick="toggleMode()">Login di sini</span>';
+            
+            clearFields();
+            hideMessage();
+        }
+
+        // Fungsi untuk menampilkan pesan status (Berhasil/Gagal)
+        function showMessage(text, type, extraHtml = "") {
+            const msgBox = document.getElementById('message');
+            msgBox.className = `message-box ${type}`;
+            msgBox.innerHTML = `<strong>${type === 'success' ? 'Berhasil:' : 'Gagal:'}</strong> ${text} ${extraHtml}`;
+            msgBox.style.display = 'block';
+        }
+
+        function hideMessage() {
+            document.getElementById('message').style.display = 'none';
+        }
+
+        function clearFields() {
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        // Fungsi Utama yang dipanggil saat tombol diklik
+        async function handleAction() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const db = getDatabase();
+
+            if (!username || !password) {
+                showMessage("Username dan password tidak boleh kosong!", "error");
+                return;
+            }
+
+            hideMessage();
+
+            if (isLoginMode) {
+                // LOGIKA LOGIN
+                if (username in db) {
+                    const inputHash = await hash_sha256(password);
+                    if (inputHash === db[username]) {
+                        // Login Sukses, pindah ke Dashboard
+                        document.getElementById('auth-panel').classList.add('hidden');
+                        document.getElementById('dashboard-panel').classList.remove('hidden');
+                        document.getElementById('user-display').innerText = username;
+                        clearFields();
+                    } else {
+                        showMessage("Password yang Anda masukkan salah.", "error");
+                    }
+                } else {
+                    showMessage("Username tidak ditemukan.", "error");
+                }
+            } else {
+                // LOGIKA REGISTRASI
+                if (username in db) {
+                    showMessage("Username sudah terdaftar!", "error");
+                } else {
+                    const hashedPassword = await hash_sha256(password);
+                    db[username] = hashedPassword;
+                    saveDatabase(db);
+                    
+                    const hashDisplay = `<div class="hash-result">Hash: ${hashedPassword}</div>`;
+                    showMessage("Registrasi berhasil! Silakan login.", "success", hashDisplay);
+                    
+                    // Otomatis kembali ke mode login setelah 3 detik
+                    setTimeout(() => {
+                        if(!isLoginMode) toggleMode();
+                    }, 3000);
+                }
+            }
+        }
+
+        // Fungsi Logout
+        function logout() {
+            document.getElementById('dashboard-panel').classList.add('hidden');
+            document.getElementById('auth-panel').classList.remove('hidden');
+            hideMessage();
+            showMessage("Anda telah berhasil keluar.", "success");
+        }
+    </script>
+</body>
+</html>
